@@ -30,6 +30,5 @@ setup(
     packages=find_packages(),
     platforms='any',
     install_requires=requires,
-    namespace_packages=['sphinxcontrib'],
 )
 

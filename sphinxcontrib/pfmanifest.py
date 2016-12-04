@@ -22,11 +22,10 @@ except ImportError:  # Sphinx < 1.4
 
 
 def visit_pfmanifest_html(self, node):
-    print("just visiting")
     pass
 
-# def depart_pfmanifest_html(self, node):
-#     pass
+def depart_pfmanifest_html(self, node):
+    pass
 
 
 class pfmanifest(nodes.General, nodes.Element):
@@ -60,13 +59,19 @@ class PfmanifestDirective(Directive):
         node['plist'] = pfmanifestdata
         node['incdir'] = os.path.dirname(relfn)
 
-        table = nodes.table()
-        return [table]
+        colspec_a = nodes.colspec('', colwidth=10)
+        thead = nodes.thead('')
+        tbody = nodes.tbody('')
+        tgroup = nodes.tgroup('', colspec_a, thead, tbody)
+
+        table = nodes.table('', tgroup)
+        table.attributes['class'] = 'asd'
+        return [table, table]
 
 
 def setup(app):
-    app.add_node(pfmanifest,
-                 html=(visit_pfmanifest_html, None))
+    # app.add_node(pfmanifest,
+    #              html=(visit_pfmanifest_html, depart_pfmanifest_html))
     app.add_directive('pfmanifest', PfmanifestDirective)
 
     return {'version': '0.1'}

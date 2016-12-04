@@ -76,4 +76,5 @@ def test_buildhtml_manifest_font():
 
     .. pfmanifest:: com.apple.fontmanifest.plist
     """
-    print('test stuff')
+    content = readfile('index.html')
+    print(content)
