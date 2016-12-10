@@ -21,15 +21,27 @@ except ImportError:  # Sphinx < 1.4
         return filename
 
 
-def visit_pfmanifest_html(self, node):
-    pass
+# def visit_pfmanifest_html(self, node):
+#     pass
+#
+# def depart_pfmanifest_html(self, node):
+#     pass
+#
+#
+# class pfmanifest(nodes.General, nodes.Element):
+#     pass
 
-def depart_pfmanifest_html(self, node):
-    pass
 
+def generate_key(keydata):
+    """
+    Generate documentation for a single key in the manifest.
+    :param keydata:
+    :return:
+    """
 
-class pfmanifest(nodes.General, nodes.Element):
-    pass
+    row = nodes.row()
+    return row
+
 
 class PfmanifestDirective(Directive):
     """
@@ -55,13 +67,15 @@ class PfmanifestDirective(Directive):
             return [warning('Preference Manifest file "%s" cannot be read: %s'
                             % (fn, err), line=self.lineno)]
 
-        node = pfmanifest()
-        node['plist'] = pfmanifestdata
-        node['incdir'] = os.path.dirname(relfn)
+        from pprint import pprint
+        pprint(pfmanifestdata)
 
         colspec_a = nodes.colspec('', colwidth=10)
         thead = nodes.thead('')
+
+
         tbody = nodes.tbody('')
+
         tgroup = nodes.tgroup('', colspec_a, thead, tbody)
 
         table = nodes.table('', tgroup)
@@ -70,6 +84,7 @@ class PfmanifestDirective(Directive):
 
 
 def setup(app):
+    # No need to create a pfmanifest node because we will just generate docutils nodes.
     # app.add_node(pfmanifest,
     #              html=(visit_pfmanifest_html, depart_pfmanifest_html))
     app.add_directive('pfmanifest', PfmanifestDirective)
