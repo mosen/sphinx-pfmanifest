@@ -32,24 +32,81 @@ except ImportError:  # Sphinx < 1.4
 #     pass
 
 
-def generate_key(keydata):
+def add_subkey(data):
     """
     Generate documentation for a single key in the manifest.
-    :param keydata:
+    Returns a docutils row node.
+
+    :param data: dict item from pfm_subkeys
     :return:
     """
-
     row = nodes.row()
+    subkey_keys = ('pfm_name', 'pfm_type', 'pfm_title', 'pfm_description', 'pfm_require')
+
+    for k in subkey_keys:
+        entry = nodes.entry()
+        row += entry
+        entry += nodes.paragraph(text=data.get(k, 'n/a'))
+
     return row
 
 
-class PfmanifestDirective(Directive):
+class PfmKeyDirective(Directive):
     """
-    Directive to insert a preferences manifest table.
+    Directive to render information about a single payload key as a section.
 
     Example::
 
-        .. pfmanifest:: test.manifest
+        To render information about the payload key "SSID_STR" from a manifest file.
+
+        .. pfm_key:: SSID_STR com.apple.wifi.managed manifest.plist
+    """
+
+    required_arguments = 2
+    final_argument_whitespace = True
+
+    def run(self):
+        warning = self.state.document.reporter.warning
+        env = self.state.document.settings.env
+
+        subkey = self.arguments[0]
+
+        fn = search_image_for_language(self.arguments[1], env)
+        relfn, absfn = env.relfn2path(fn)
+        env.note_dependency(relfn)
+        try:
+            data = plistlib.readPlist(absfn)
+        except IOError as err:
+            return [warning('Preference Manifest file "%s" cannot be read: %s'
+                            % (fn, err), line=self.lineno)]
+
+        def find_subkey(subkeys, k):
+            for d in subkeys:
+                if d.get('pfm_name') == k:
+                    return d
+            return None
+
+        kd = find_subkey(data.get('pfm_subkeys', []), subkey)
+        if kd is None:
+            return [warning('No pfm_name "%s" exists in manifest "%s".'
+                            % (subkey, self.arguments[1]))]
+
+        targetid = "payload-key-%s" % env.new_serialno('payload')
+        target = nodes.target('', '', ids=[targetid])
+
+        section = nodes.section()
+        section += nodes.title(text=kd.get('pfm_name'))
+
+        return [section]
+
+
+class PfmDirective(Directive):
+    """
+    Directive to render a preferences manifest plist as a table.
+
+    Example::
+
+        .. pfm:: test.manifest
 
     """
     has_content = False
@@ -67,26 +124,51 @@ class PfmanifestDirective(Directive):
             return [warning('Preference Manifest file "%s" cannot be read: %s'
                             % (fn, err), line=self.lineno)]
 
-        from pprint import pprint
-        pprint(pfmanifestdata)
+        table = nodes.table()
+        payload_type = nodes.emphasis('', pfmanifestdata.get('pfm_domain'))
+        title = nodes.title()
+        table += title
 
-        colspec_a = nodes.colspec('', colwidth=10)
-        thead = nodes.thead('')
+        title += payload_type
+        title += nodes.paragraph(text=pfmanifestdata.get('pfm_description'))
+
+        header = ('Name', 'Type', 'Title', 'Description', 'Required')
+
+        tgroup = nodes.tgroup(cols=len(header))
+        table += tgroup
+
+        colwidths = (1, 1, 1, 3, 1)
+        for colwidth in colwidths:
+            tgroup += nodes.colspec(colwidth=colwidth)
+
+        thead = nodes.thead()
+        tgroup += thead
+
+        th_row = nodes.row()
+        thead += th_row
+
+        for head in header:
+            entry = nodes.entry()
+            th_row += entry
+            entry += nodes.paragraph(text=head)
+
+        tbody = nodes.tbody()
+        tgroup += tbody
 
 
-        tbody = nodes.tbody('')
+        rows = [add_subkey(subkey) for subkey in pfmanifestdata.get('pfm_subkeys')]
+        tbody += rows
+        #tbody = nodes.tbody('', *rows)
 
-        tgroup = nodes.tgroup('', colspec_a, thead, tbody)
 
-        table = nodes.table('', tgroup)
-        table.attributes['class'] = 'asd'
-        return [table, table]
+
+
+
+        return [table]
 
 
 def setup(app):
-    # No need to create a pfmanifest node because we will just generate docutils nodes.
-    # app.add_node(pfmanifest,
-    #              html=(visit_pfmanifest_html, depart_pfmanifest_html))
-    app.add_directive('pfmanifest', PfmanifestDirective)
+    app.add_directive('pfm', PfmDirective)
+    app.add_directive('pfm_key', PfmKeyDirective)
 
     return {'version': '0.1'}

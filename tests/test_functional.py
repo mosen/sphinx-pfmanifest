@@ -74,7 +74,7 @@ def with_runsphinx(builder, **kwargs):
 def test_buildhtml_manifest_font():
     """Generate simple HTML from font payload preferences manifest.
 
-    .. pfmanifest:: com.apple.fontmanifest.plist
+    .. pfm:: com.apple.fontmanifest.plist
     """
     content = readfile('index.html')
     print(content)

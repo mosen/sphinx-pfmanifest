@@ -7,4 +7,11 @@ Contents:
    :maxdepth: 2
 
 
-.. pfmanifest:: com.apple.fontmanifest.plist
+Preferences manifest tests
+
+.. pfm:: com.apple.fontmanifest.plist
+
+Key test
+
+.. pfm_key:: Font:com.apple.fontmanifest.plist
+
