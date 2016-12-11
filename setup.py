@@ -10,7 +10,7 @@ the manifest.
 requires = ['Sphinx>=1.1']
 
 setup(
-    name='sphinx-pfmanifest',
+    name='pfmanifest',
     version='0.1',
     url='https://github.com/mosen/sphinx-pfmanifest',
     license='MIT',
@@ -29,6 +29,7 @@ setup(
     ],
     packages=find_packages(),
     platforms='any',
+    namespaces=['sphinxcontrib'],
     install_requires=requires,
 )
 
