@@ -49,6 +49,10 @@ class PfmKeyDirective(Directive):
         To render information about the payload key "SSID_STR" from a manifest file.
 
         .. pfmkey::SSID_STR com.apple.wifi.managed manifest.plist
+
+    TODO: pfm_conditionals.pfm_target_conditions (only enabled when these conditions are met)
+    TODO: pfm_exclude
+    TODO: pfm_require "push", "always"
     """
 
     required_arguments = 2
@@ -180,14 +184,15 @@ class PfmDirective(Directive):
             return [warning('Preference Manifest file "%s" cannot be read: %s'
                             % (fn, err), line=self.lineno)]
 
+        header_dl = nodes.definition_list()
+        payload_type_item = nodes.definition_list_item()
+        header_dl += payload_type_item
+        payload_type_item += nodes.term('', 'PayloadType')
+        payload_type_def = nodes.definition()
+        payload_type_item += payload_type_def
+        payload_type_def += nodes.paragraph(text=pfmanifestdata.get('pfm_domain'))
+
         table = nodes.table()
-        payload_type = nodes.emphasis('', pfmanifestdata.get('pfm_domain'))
-        title = nodes.title()
-        table += title
-
-        title += payload_type
-        title += nodes.paragraph(text=pfmanifestdata.get('pfm_description'))
-
         header = ('Name', 'Type', 'Title', 'Description', 'Required')
 
         tgroup = nodes.tgroup(cols=len(header))
@@ -216,11 +221,7 @@ class PfmDirective(Directive):
         tbody += rows
         #tbody = nodes.tbody('', *rows)
 
-
-
-
-
-        return [table]
+        return [header_dl, table]
 
 
 def setup(app):
