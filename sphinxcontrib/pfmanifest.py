@@ -10,7 +10,7 @@
 
 import os.path
 from docutils import nodes
-from docutils.parsers.rst import Directive
+from docutils.parsers.rst import Directive, directives
 from sphinx.errors import SphinxError
 import plistlib
 
@@ -19,25 +19,6 @@ try:
 except ImportError:  # Sphinx < 1.4
     def search_image_for_language(filename, env):
         return filename
-
-
-def add_subkey(data):
-    """
-    Generate documentation for a single key in the manifest.
-    Returns a docutils row node.
-
-    :param data: dict item from pfm_subkeys
-    :return:
-    """
-    row = nodes.row()
-    subkey_keys = ('pfm_name', 'pfm_type', 'pfm_title', 'pfm_description', 'pfm_require')
-
-    for k in subkey_keys:
-        entry = nodes.entry()
-        row += entry
-        entry += nodes.paragraph(text=data.get(k, 'n/a'))
-
-    return row
 
 
 class PfmKeyDirective(Directive):
@@ -64,13 +45,13 @@ class PfmKeyDirective(Directive):
         Build a table including the data type, format required, etc of this key.
         :return: nodes.table
         """
-        headings = ('Type', 'Default', 'Required', 'Regex')
+        headings = ('Type', 'Default', 'Required', 'Regex', 'iOS', 'macOS', 'Supervised')
         table = nodes.table()
 
         tgroup = nodes.tgroup(cols=len(headings))
         table += tgroup
 
-        colwidths = (1, 1, 1, 1)
+        colwidths = (1, 1, 1, 1, 1, 1, 1)
         for colwidth in colwidths:
             tgroup += nodes.colspec(colwidth=colwidth)
 
@@ -91,7 +72,7 @@ class PfmKeyDirective(Directive):
         tdrow = nodes.row()
         tbody += tdrow
 
-        keys = ('pfm_type', 'pfm_default', 'pfm_require', 'pfm_format')
+        keys = ('pfm_type', 'pfm_default', 'pfm_require', 'pfm_format', 'pfm_ios_min', 'pfm_macos_min', 'pfm_supervised')
         for k in keys:
             entry = nodes.entry()
             entry += nodes.paragraph(text=data.get(k, 'N/A'))
@@ -166,11 +147,59 @@ class PfmDirective(Directive):
     Example::
 
         .. pfm:: test.manifest
-
+           :key: subkey.subsubkey
+           :include_common:
     """
     has_content = False
     required_arguments = 1
+    optional_arguments = 0
     final_argument_whitespace = True
+    option_spec = {
+        'key': lambda v: [k for k in v.split()],
+        'include_common': directives.flag
+    }
+    common_keys = ('PayloadDescription', 'PayloadDisplayName', 'PayloadIdentifier', 'PayloadType', 'PayloadUUID',
+                   'PayloadVersion', 'PayloadOrganization')
+
+    def rows(self, dicts):
+        """
+        Generate documentation table rows for a collection of keys
+        Yields a docutils row node
+
+        :param data: dict item from pfm_subkeys
+        :return:
+        """
+        for d in dicts:
+            if d['pfm_name'] in self.common_keys:
+                continue
+
+            row = nodes.row()
+            subkey_keys = ('pfm_name', 'pfm_type', 'pfm_title', 'pfm_description', 'pfm_require')
+
+            for sk in subkey_keys:
+                entry = nodes.entry()
+                row += entry
+                entry += nodes.paragraph(text=d.get(sk, 'n/a'))
+
+            yield row
+
+
+    def get_subkey(self, root, subkeys):
+        """
+        Traverse the manifest structure to get a nested list of subkeys
+
+        :param root: The root of the manifest data
+        :param subkeys: Array of key pfm_name's to traverse
+        :return: dict pfm_subkey value after traversing
+        """
+        subkey = subkeys.pop(0)
+
+        for element in root:
+            if element.get('pfm_name') == subkey:
+                if len(subkeys) == 0:
+                    return element
+                else:
+                    return self.get_subkey(element.get('pfm_subkeys'), subkeys)
 
     def run(self):
         warning = self.state.document.reporter.warning
@@ -216,8 +245,10 @@ class PfmDirective(Directive):
         tbody = nodes.tbody()
         tgroup += tbody
 
-        skip_names = ('PayloadDescription', 'PayloadDisplayName', 'PayloadIdentifier')
-        rows = [add_subkey(subkey) for subkey in pfmanifestdata.get('pfm_subkeys')]
+        if len(self.options.get('key', [])) > 0:
+            pfmanifestdata = self.get_subkey(pfmanifestdata.get('pfm_subkeys'), self.options['key'])
+
+        rows = [row for row in self.rows(pfmanifestdata.get('pfm_subkeys'))]
         tbody += rows
         #tbody = nodes.tbody('', *rows)
 
