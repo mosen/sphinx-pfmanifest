@@ -139,6 +139,60 @@ class PfmKeyDirective(Directive):
 
         return [section]
 
+class PfmHeaderDirective(Directive):
+    """
+    Directive to render top level key values as a definition list.
+
+    Example::
+
+        .. pfmheader:: test.manifest
+
+    """
+    has_content = False
+    required_arguments = 1
+    final_argument_whitespace = True
+
+    header_keys = ('pfm_domain', 'pfm_supervised', 'pfm_macos_min', 'pfm_macos_max', 'pfm_ios_min', 'pfm_ios_max',
+                   'pfm_unique')
+    headers = {
+        'pfm_domain': 'PayloadType',
+        'pfm_supervised': 'Supervised Only',
+        'pfm_macos_min': 'macOS',
+        'pfm_macos_max': 'macOS Deprecated',
+        'pfm_ios_min': 'iOS',
+        'pfm_ios_max': 'iOS Deprecated',
+        'pfm_unique': 'Highlander'
+    }
+
+    def field_list_item(self, label, value):
+        field = nodes.field()
+        field += nodes.field_name(text=label)
+        fb = nodes.field_body()
+        field += fb
+        fb += nodes.paragraph(text=value)
+        return field
+
+    def run(self):
+        warning = self.state.document.reporter.warning
+        env = self.state.document.settings.env
+        fn = search_image_for_language(self.arguments[0], env)
+        relfn, absfn = env.relfn2path(fn)
+        env.note_dependency(relfn)
+        try:
+            pfmanifestdata = plistlib.readPlist(absfn)
+        except IOError as err:
+            return [warning('Preference Manifest file "%s" cannot be read: %s'
+                            % (fn, err), line=self.lineno)]
+
+        fl = nodes.field_list()
+
+        for k in self.header_keys:
+            if k in pfmanifestdata:
+                fl += self.field_list_item(self.headers[k], pfmanifestdata.get(k, 'N/A'))
+            else:
+                fl += self.field_list_item(self.headers[k], 'N/A')
+
+        return [fl]
 
 class PfmDirective(Directive):
     """
@@ -190,16 +244,24 @@ class PfmDirective(Directive):
 
         :param root: The root of the manifest data
         :param subkeys: Array of key pfm_name's to traverse
-        :return: dict pfm_subkey value after traversing
+        :return: dict pfm_subkey value after traversing, or None if it doesn't exist
         """
         subkey = subkeys.pop(0)
 
         for element in root:
+            if 'pfm_name' not in element:
+                continue  # skip bad elements that have no name
+
             if element.get('pfm_name') == subkey:
                 if len(subkeys) == 0:
                     return element
                 else:
-                    return self.get_subkey(element.get('pfm_subkeys'), subkeys)
+                    if 'pfm_subkeys' not in element:
+                        raise self.error('Trying to access subkey {} of {}, doesnt exist.'.format(subkey, element.get('pfm_name')))
+                    else:
+                        return self.get_subkey(element.get('pfm_subkeys'), subkeys)
+
+        return None
 
     def run(self):
         warning = self.state.document.reporter.warning
@@ -212,14 +274,6 @@ class PfmDirective(Directive):
         except IOError as err:
             return [warning('Preference Manifest file "%s" cannot be read: %s'
                             % (fn, err), line=self.lineno)]
-
-        header_dl = nodes.definition_list()
-        payload_type_item = nodes.definition_list_item()
-        header_dl += payload_type_item
-        payload_type_item += nodes.term('', 'PayloadType')
-        payload_type_def = nodes.definition()
-        payload_type_item += payload_type_def
-        payload_type_def += nodes.paragraph(text=pfmanifestdata.get('pfm_domain'))
 
         table = nodes.table()
         header = ('Name', 'Type', 'Title', 'Description', 'Required')
@@ -247,16 +301,19 @@ class PfmDirective(Directive):
 
         if len(self.options.get('key', [])) > 0:
             pfmanifestdata = self.get_subkey(pfmanifestdata.get('pfm_subkeys'), self.options['key'])
+            if pfmanifestdata is None:
+                raise self.severe("Could not locate the manifest key specified by: {}".format(self.options['key']))
 
         rows = [row for row in self.rows(pfmanifestdata.get('pfm_subkeys'))]
         tbody += rows
         #tbody = nodes.tbody('', *rows)
 
-        return [header_dl, table]
+        return [table]
 
 
 def setup(app):
     app.add_directive('pfm', PfmDirective)
+    app.add_directive('pfmheader', PfmHeaderDirective)
     app.add_directive('pfmkey', PfmKeyDirective)
 
     return {'version': '0.1'}
