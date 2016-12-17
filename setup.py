@@ -17,7 +17,7 @@ setup(
     author='mosen',
     author_email='mosen@noreply.users.github.com',
     description='Sphinx Apple Preference Manifest (pfm) Extension',
-    long_desc=long_desc,
+    long_description=long_desc,
     zip_safe=False,
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
@@ -27,9 +27,10 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Documentation :: Sphinx',
     ],
-    packages=find_packages(),
+    keywords="apple mobileconfig manifest sphinx extension",
+    packages=find_packages(exclude=["tests"]),
     platforms='any',
-    namespaces=['sphinxcontrib'],
+    namespace_packages=['sphinxcontrib'],
     install_requires=requires,
 )
 
