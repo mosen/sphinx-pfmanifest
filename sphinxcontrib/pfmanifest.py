@@ -31,6 +31,10 @@ class PfmKeyDirective(Directive):
 
         .. pfmkey::SSID_STR com.apple.wifi.managed manifest.plist
 
+        To render a nested key use : (colon) as a path separator
+
+        .. pfmkey::EAPClientConfiguration:AcceptEAPTypes manifests/manual/com.apple.wifi.managed manifest.plist
+
     TODO: pfm_conditionals.pfm_target_conditions (only enabled when these conditions are met)
     TODO: pfm_exclude
     TODO: pfm_require "push", "always"
@@ -111,13 +115,21 @@ class PfmKeyDirective(Directive):
             return [warning('Preference Manifest file "%s" cannot be read: %s'
                             % (fn, err), line=self.lineno)]
 
-        def find_subkey(subkeys, k):
-            for d in subkeys:
-                if d.get('pfm_name') == k:
-                    return d
-            return None
+        def find_subkey_path(d, keys):
+            for curkey in d.get('pfm_subkeys', []):
+                if curkey.get('pfm_name') == keys[0]:
+                    if len(keys) == 1:
+                        return curkey
+                    else:
+                        return find_subkey_path(curkey, keys[1:])
 
-        kd = find_subkey(data.get('pfm_subkeys', []), subkey)
+            return None  # If for loop never finds anything
+
+        if ':' in subkey:
+            kd = find_subkey_path(data, subkey.split(':'))
+        else:
+            kd = find_subkey_path(data, [subkey])
+
         if kd is None:
             return [warning('No pfm_name "%s" exists in manifest "%s".'
                             % (subkey, self.arguments[1]))]
@@ -209,7 +221,7 @@ class PfmDirective(Directive):
     optional_arguments = 0
     final_argument_whitespace = True
     option_spec = {
-        'key': lambda v: [k for k in v.split()],
+        'key': lambda v: [k for k in v.split(':')],
         'include_common': directives.flag
     }
     common_keys = ('PayloadDescription', 'PayloadDisplayName', 'PayloadIdentifier', 'PayloadType', 'PayloadUUID',
@@ -237,29 +249,16 @@ class PfmDirective(Directive):
 
             yield row
 
+    def find_subkey_path(self, d, keys):
+        for curkey in d.get('pfm_subkeys', []):
+            if 'pfm_name' not in curkey:
+                continue
 
-    def get_subkey(self, root, subkeys):
-        """
-        Traverse the manifest structure to get a nested list of subkeys
-
-        :param root: The root of the manifest data
-        :param subkeys: Array of key pfm_name's to traverse
-        :return: dict pfm_subkey value after traversing, or None if it doesn't exist
-        """
-        subkey = subkeys.pop(0)
-
-        for element in root:
-            if 'pfm_name' not in element:
-                continue  # skip bad elements that have no name
-
-            if element.get('pfm_name') == subkey:
-                if len(subkeys) == 0:
-                    return element
+            if curkey.get('pfm_name') == keys[0]:
+                if len(keys) == 1:
+                    return curkey
                 else:
-                    if 'pfm_subkeys' not in element:
-                        raise self.error('Trying to access subkey {} of {}, doesnt exist.'.format(subkey, element.get('pfm_name')))
-                    else:
-                        return self.get_subkey(element.get('pfm_subkeys'), subkeys)
+                    return self.find_subkey_path(curkey, keys[1:])
 
         return None
 
@@ -300,7 +299,7 @@ class PfmDirective(Directive):
         tgroup += tbody
 
         if len(self.options.get('key', [])) > 0:
-            pfmanifestdata = self.get_subkey(pfmanifestdata.get('pfm_subkeys'), self.options['key'])
+            pfmanifestdata = self.find_subkey_path(pfmanifestdata, self.options['key'])
             if pfmanifestdata is None:
                 raise self.severe("Could not locate the manifest key specified by: {}".format(self.options['key']))
 
